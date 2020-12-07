@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
                 if (reverse) {
                     std::swap(to_receive, to_send);
                 }
-                for (int r = 0; r < repeat; r++) {
+                for (int r = 0; r < times; r++) {
                     // printf("%d sends to %d\n", mpi_rank, opposite_rank);
                     if (to_send) {
                         for (int j = 0; j < MPI_TEST_BATCH_SIZE; ++j) {
