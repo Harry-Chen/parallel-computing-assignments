@@ -66,9 +66,10 @@ int main(int argc, char *argv[]) {
 
 
     size_t max_size = test_sizes[test_sizes.size() - 1];
-    auto buf = new uint8_t[max_size * MPI_TEST_BATCH_SIZE]();
     auto test_result = new double[mpi_size]();
     double *all_result;
+    MPI_Request *requests = new MPI_Request[1048576 / test_sizes[0]];
+    auto buf = new uint8_t[max_size]();
 
     if (mpi_rank == 0) {
         all_result = new double[mpi_size * mpi_size]();
@@ -90,7 +91,7 @@ int main(int argc, char *argv[]) {
             }
             timer timer;
             auto transfer_data = [&](int times, bool reverse = false) {
-                MPI_Request request_status[MPI_TEST_BATCH_SIZE];
+                int test_batches = std::max(MPI_TEST_BATCH_SIZE, 1048576 / size);
                 bool to_send = mpi_rank < opposite_rank;
                 bool to_receive = mpi_rank > opposite_rank;
                 // reverse send and receive
@@ -100,26 +101,26 @@ int main(int argc, char *argv[]) {
                 for (int r = 0; r < times; r++) {
                     // printf("%d sends to %d\n", mpi_rank, opposite_rank);
                     if (to_send) {
-                        for (int j = 0; j < MPI_TEST_BATCH_SIZE; ++j) {
-                            MPI_Isend(buf + j * max_size, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &request_status[j]);
+                        for (int j = 0; j < test_batches; ++j) {
+                            MPI_Isend(buf, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &requests[j]);
                         }
                     } else if (to_receive) {
                         // printf("%d receives from %d\n", mpi_rank, opposite_rank);
-                        for (int j = 0; j < MPI_TEST_BATCH_SIZE; ++j) {
-                            MPI_Irecv(buf + j * max_size, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &request_status[j]);
+                        for (int j = 0; j < test_batches; ++j) {
+                            MPI_Irecv(buf, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &requests[j]);
                         }
                     }
                     if (mpi_rank != opposite_rank) {
-                        MPI_Waitall(MPI_TEST_BATCH_SIZE, request_status, MPI_STATUSES_IGNORE);
+                        MPI_Waitall(test_batches, requests, MPI_STATUSES_IGNORE);
                     }
                 }
             };
             // smaller rank -> larger rank (receive bandwidth of larger rank)
-            transfer_data(repeat, false); // warm up
+            transfer_data(2, false); // warm up
             auto duration_1 = timer(transfer_data, repeat, false);
             MPI_Barrier(MPI_COMM_WORLD);
             // smaller rank <- larger rank (receive bandwidth of smaller rank)
-            transfer_data(repeat, true); // warm up
+            transfer_data(2, true); // warm up
             auto duration_2 = timer(transfer_data, repeat, true);
             MPI_Barrier(MPI_COMM_WORLD);
 
@@ -131,7 +132,7 @@ int main(int argc, char *argv[]) {
         }
 
         // gather results to root rank
-        MPI_Gather(test_result, mpi_size, MPI_DOUBLE, all_result + mpi_size * mpi_rank, mpi_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gather(test_result, mpi_size, MPI_DOUBLE, all_result, mpi_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
         if (mpi_rank == 0) {
             puts("==================");
