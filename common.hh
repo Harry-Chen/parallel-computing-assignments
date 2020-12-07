@@ -41,7 +41,8 @@ void mpi_init_common(bool ensure_single_rank = true) {
 #define DO_RANK_ZERO(EXPR) if (mpi_rank == 0) { EXPR; }
 #define EARLY_EXIT(CODE) MPI_Finalize(); return (CODE);
 
-#define MPI_TEST_BATCH_SIZE 64
+#define MPI_TEST_BATCH_SIZE 20
+#define MPI_P2P_WARMUP_RUN 3
 
 struct timer {
     template <typename F, typename... T>

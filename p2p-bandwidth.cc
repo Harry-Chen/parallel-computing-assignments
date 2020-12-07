@@ -15,8 +15,8 @@ int main(int argc, char *argv[]) {
     options.allow_unrecognised_options();
     options.add_options()
         ("h,help", "print help")
-        ("s,size", "test sizes (in bytes)", cxxopts::value<std::vector<int>>()->default_value("1,2,4,8,15,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131972,262144,524288,1048576,2097152,4194304"))
-        ("r,repeat", "repeat times of each test", cxxopts::value<int>()->default_value("5"))
+        ("s,size", "test sizes (in bytes)", cxxopts::value<std::vector<int>>()->default_value("1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131972,262144,524288,1048576,2097152,4194304"))
+        ("r,repeat", "repeat times of each test", cxxopts::value<int>()->default_value("8"))
         ("o,output", "output result file", cxxopts::value<std::string>()->default_value(""));
     auto result = options.parse(argc, argv);
     auto repeat = result["r"].as<int>();
@@ -68,8 +68,8 @@ int main(int argc, char *argv[]) {
     size_t max_size = test_sizes[test_sizes.size() - 1];
     auto test_result = new double[mpi_size]();
     double *all_result;
-    MPI_Request *requests = new MPI_Request[1048576 / test_sizes[0]];
-    auto buf = new uint8_t[max_size]();
+    MPI_Request *requests = new MPI_Request[MPI_TEST_BATCH_SIZE];
+    auto buf = new uint8_t[max_size * MPI_TEST_BATCH_SIZE]();
 
     if (mpi_rank == 0) {
         all_result = new double[mpi_size * mpi_size]();
@@ -80,7 +80,8 @@ int main(int argc, char *argv[]) {
         int size = test_sizes[s];
         
         // running through N anti-diagonals
-        for (int i = 0; i < mpi_size; ++i) {
+        for (int j = -2; j < mpi_size * MPI_P2P_WARMUP_RUN; ++j) {
+            int i = std::max(0, j) / MPI_P2P_WARMUP_RUN; // first W - 1 run is warming up
             int lower_diagonal_sum = mpi_size - 1 + i;
             int upper_diagonal_sum = i - 1;
             int opposite_rank = -1;
@@ -91,7 +92,7 @@ int main(int argc, char *argv[]) {
             }
             timer timer;
             auto transfer_data = [&](int times, bool reverse = false) {
-                int test_batches = std::max(MPI_TEST_BATCH_SIZE, 1048576 / size);
+                int test_batches = MPI_TEST_BATCH_SIZE;
                 bool to_send = mpi_rank < opposite_rank;
                 bool to_receive = mpi_rank > opposite_rank;
                 // reverse send and receive
@@ -102,12 +103,12 @@ int main(int argc, char *argv[]) {
                     // printf("%d sends to %d\n", mpi_rank, opposite_rank);
                     if (to_send) {
                         for (int j = 0; j < test_batches; ++j) {
-                            MPI_Isend(buf, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &requests[j]);
+                            MPI_Isend(buf + j * max_size, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &requests[j]);
                         }
                     } else if (to_receive) {
                         // printf("%d receives from %d\n", mpi_rank, opposite_rank);
                         for (int j = 0; j < test_batches; ++j) {
-                            MPI_Irecv(buf, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &requests[j]);
+                            MPI_Irecv(buf + j * max_size, size, MPI_CHAR, opposite_rank, j, MPI_COMM_WORLD, &requests[j]);
                         }
                     }
                     if (mpi_rank != opposite_rank) {
@@ -115,19 +116,20 @@ int main(int argc, char *argv[]) {
                     }
                 }
             };
+
             // smaller rank -> larger rank (receive bandwidth of larger rank)
-            transfer_data(2, false); // warm up
+            // transfer_data(2, false); // warm up
             auto duration_1 = timer(transfer_data, repeat, false);
             MPI_Barrier(MPI_COMM_WORLD);
             // smaller rank <- larger rank (receive bandwidth of smaller rank)
-            transfer_data(2, true); // warm up
+            // transfer_data(2, true); // warm up
             auto duration_2 = timer(transfer_data, repeat, true);
             MPI_Barrier(MPI_COMM_WORLD);
 
             if (mpi_rank < opposite_rank) {
-                test_result[opposite_rank] = size * repeat * MPI_TEST_BATCH_SIZE * 1.0 / 1000000 / duration_2;
+                test_result[opposite_rank] = (double) size * repeat * MPI_TEST_BATCH_SIZE / 1000000 / duration_2;
             } else if (mpi_rank > opposite_rank) {
-                test_result[opposite_rank] = size * repeat * MPI_TEST_BATCH_SIZE * 1.0 / 1000000 / duration_1;
+                test_result[opposite_rank] = (double) size * repeat * MPI_TEST_BATCH_SIZE / 1000000 / duration_1;
             }
         }
 
