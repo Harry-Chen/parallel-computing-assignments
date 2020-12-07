@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
                 opposite_rank = upper_diagonal_sum - mpi_rank;
             }
             timer timer;
-            auto transfer_data = [&](bool times, bool reverse = false) {
+            auto transfer_data = [&](int times, bool reverse = false) {
                 MPI_Request request_status[MPI_TEST_BATCH_SIZE];
                 bool to_send = mpi_rank < opposite_rank;
                 bool to_receive = mpi_rank > opposite_rank;
