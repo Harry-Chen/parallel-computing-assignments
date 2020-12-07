@@ -80,8 +80,8 @@ int main(int argc, char *argv[]) {
         
         // running through N anti-diagonals
         for (int i = 0; i < mpi_size; ++i) {
-            int lower_diagonal_sum = mpi_size - 1 + i; // 2
-            int upper_diagonal_sum = i - 1; // 0
+            int lower_diagonal_sum = mpi_size - 1 + i;
+            int upper_diagonal_sum = i - 1;
             int opposite_rank = -1;
             if (mpi_rank <= lower_diagonal_sum && mpi_rank > upper_diagonal_sum) {
                 opposite_rank = lower_diagonal_sum - mpi_rank;
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
                 opposite_rank = upper_diagonal_sum - mpi_rank;
             }
             timer timer;
-            auto transfer_data = [&](bool reverse = false) {
+            auto transfer_data = [&](bool times, bool reverse = false) {
                 MPI_Request request_status[MPI_TEST_BATCH_SIZE];
                 bool to_send = mpi_rank < opposite_rank;
                 bool to_receive = mpi_rank > opposite_rank;
@@ -115,10 +115,12 @@ int main(int argc, char *argv[]) {
                 }
             };
             // smaller rank -> larger rank (receive bandwidth of larger rank)
-            auto duration_1 = timer(transfer_data, false);
+            transfer_data(2, false); // warm up
+            auto duration_1 = timer(transfer_data, repeat, false);
             MPI_Barrier(MPI_COMM_WORLD);
             // smaller rank <- larger rank (receive bandwidth of smaller rank)
-            auto duration_2 = timer(transfer_data, true);
+            transfer_data(2, true); // warm up
+            auto duration_2 = timer(transfer_data, repeat, true);
             MPI_Barrier(MPI_COMM_WORLD);
 
             if (mpi_rank < opposite_rank) {
@@ -136,13 +138,13 @@ int main(int argc, char *argv[]) {
             printf("Send size: %d B\n", size);
             printf("S/R ");
             for (int p = 0; p < mpi_size; ++p) {
-                printf("     %3d    ", p);
+                printf("      %3d    ", p);
             }
             puts("");
             for (int p = 0; p < mpi_size; ++p) {
                 printf("%3d ", p);
                 for (int q = 0; q < mpi_size; ++q) {
-                    printf("%11.6lf ", all_result[p * mpi_size + q]);
+                    printf("%12.6lf ", all_result[p * mpi_size + q]);
                 }
                 puts("");
             }
