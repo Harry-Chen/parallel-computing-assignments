@@ -166,13 +166,13 @@ int main(int argc, char *argv[]) {
             printf("Send size: %d B\n", size);
             printf("S/R ");
             for (int p = 0; p < mpi_size; ++p) {
-                printf("      %3d    ", p);
+                printf("   %3d       ", p);
             }
             puts("");
             for (int p = 0; p < mpi_size; ++p) {
                 printf("%3d ", p);
                 for (int q = 0; q < mpi_size; ++q) {
-                    printf(p == q ? "     NA     " : "%12.6lf ", all_result[p * mpi_size + q]);
+                    printf(p == q ? "     NA      " : "%12.6lf ", all_result[p * mpi_size + q]);
                 }
                 puts("");
             }
