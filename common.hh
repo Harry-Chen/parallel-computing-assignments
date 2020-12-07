@@ -46,9 +46,9 @@ void mpi_init_common(bool ensure_single_rank = true) {
 struct timer {
     template <typename F, typename... T>
     double operator()(F &&func, T... args) {
-        auto start = std::chrono::system_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
         func(std::forward<T>(args)...);
-        auto end = std::chrono::system_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
         return duration.count();
     };

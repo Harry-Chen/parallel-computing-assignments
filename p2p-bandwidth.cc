@@ -115,11 +115,11 @@ int main(int argc, char *argv[]) {
                 }
             };
             // smaller rank -> larger rank (receive bandwidth of larger rank)
-            transfer_data(2, false); // warm up
+            transfer_data(repeat, false); // warm up
             auto duration_1 = timer(transfer_data, repeat, false);
             MPI_Barrier(MPI_COMM_WORLD);
             // smaller rank <- larger rank (receive bandwidth of smaller rank)
-            transfer_data(2, true); // warm up
+            transfer_data(repeat, true); // warm up
             auto duration_2 = timer(transfer_data, repeat, true);
             MPI_Barrier(MPI_COMM_WORLD);
 
