@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     Betas = new double *[M];
     Gammas = new double *[M];
 
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < M; i++) {
         U_t[i] = new double[N];
         Alphas[i] = new double[M];
         Betas[i] = new double[M];
@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
         cout << "Alphas" << endl << endl;
         for (int i = 0; i < M; i++) {
 
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < M; j++) {
 
                 cout << Alphas[i][j] << "  ";
             }
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
         cout << endl << "Betas" << endl << endl;
         for (int i = 0; i < M; i++) {
 
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < M; j++) {
                 cout << Betas[i][j] << "  ";
             }
             cout << endl;
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
 
         cout << endl << "Gammas" << endl << endl;
         for (int i = 0; i < M; i++) {
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < M; j++) {
 
                 cout << Gammas[i][j] << "  ";
             }
@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
 
         Af << M << "  " << N;
         for (int i = 0; i < M; i++) {
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < M; j++) {
                 Af << " " << Alphas[i][j];
             }
             Af << "\n";
@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
          * "<<M<<"\n# columns: "<<N<<"\n";*/
 
         for (int i = 0; i < M; i++) {
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < M; j++) {
                 Uf << " " << Betas[i][j];
             }
             Uf << "\n";
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
          * "<<M<<"\n# columns: "<<N<<"\n";*/
 
         for (int i = 0; i < M; i++) {
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < M; j++) {
                 Vf << " " << Gammas[i][j];
             }
             Vf << "\n";
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
         ofstream Sf;
     }
 
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < M; i++) {
         delete[] Alphas[i];
         delete[] U_t[i];
         delete[] Betas[i];
