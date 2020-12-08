@@ -7,7 +7,7 @@ executables = $(sources:.cpp=)
 all: $(executables)
 
 %: %.cpp $(headers)
-	$(MPICXX) -o $@ $(CXXFLAGS) $<
+	$(MPICXX) -o $@ $(CXXFLAGS) -O3 -march=native $<
 
 clean:
 	rm -rf $(executables)
