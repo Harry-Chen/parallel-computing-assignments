@@ -1,4 +1,9 @@
 .vscode/
 *-bandwidth
 *.result
-
+reduction*
+validation*
+!*.cpp
+!*.cc
+!*.hpp
+!*.hh

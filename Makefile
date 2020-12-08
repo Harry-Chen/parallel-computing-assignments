@@ -1,6 +1,4 @@
-MPICC ?= mpicc
-MPICXX ?= mpicxx
-CXXFLAGS ?= -std=c++17 -O2 -g -Wall -Wextra
+include ./Makefrag
 
 sources = $(wildcard *.cc)
 headers = $(wildcard *.hh)
