@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     options.add_options()
         ("h,help", "print help")
         ("s,size", "test sizes (in bytes)", cxxopts::value<std::vector<int>>()->default_value("4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131972,262144,524288,1048576,2097152,4194304"))
-        ("m,methods", "collective methods to test", cxxopts::value<std::vector<std::string>>()->default_value("bcast,reduce,gather,scan,allgather,allreduce,alltoall"))
+        ("m,methods", "collective methods to test", cxxopts::value<std::vector<std::string>>()->default_value("bcast,reduce,gather,scatter,scan,reduce_scatter,allgather,allreduce,alltoall"))
         ("r,repeat", "repeat times of each test", cxxopts::value<int>()->default_value("8"))
         ("w,warmup", "warmup run numbers of each test", cxxopts::value<int>()->default_value("3"))
         ("b,batch", "operation batch size of each test", cxxopts::value<int>()->default_value("20"))
@@ -29,16 +29,25 @@ int main(int argc, char *argv[]) {
     // fetch options
     auto result = options.parse(argc, argv);
     auto repeat = result["r"].as<int>();
+    // test sizes (sort + uniquefy)
     auto test_sizes = result["s"].as<std::vector<int>>();
+    std::sort(test_sizes.begin(), test_sizes.end());
+    test_sizes.erase(std::unique(test_sizes.begin(), test_sizes.end()), test_sizes.end());
+    // methods (sort + uniquefy)
     auto methods = result["m"].as<std::vector<std::string>>();
     std::for_each(methods.begin(), methods.end(), [](std::string s) {std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });}); // convert method names to lower case
+    std::sort(methods.begin(), methods.end());
+    methods.erase(std::unique(methods.begin(), methods.end()), methods.end());
+    // other options
     auto warmup = result["w"].as<int>();
     auto batch = result["b"].as<int>();
-    std::sort(test_sizes.begin(), test_sizes.end());
+    // root nodes (sort + uniquefy)
     auto roots = result["R"].as<std::vector<int>>();
+    std::sort(roots.begin(), roots.end());
+    roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
 
-    const std::vector<std::string> SINGLE_ROOTED_METHODS = {"bcast", "reduce", "gather"};
-    const std::vector<std::string> ALL_COLLECTIVE_METHODS = {"scan", "allgather", "allreduce", "alltoall"};
+    const std::vector<std::string> SINGLE_ROOTED_METHODS = {"bcast", "reduce", "gather", "scatter"};
+    const std::vector<std::string> ALL_COLLECTIVE_METHODS = {"scan", "reduce_scatter", "allgather", "allreduce", "alltoall"};
 
     // print help
     if (result.count("h")) {
@@ -71,8 +80,8 @@ int main(int argc, char *argv[]) {
         EARLY_EXIT(1);
     }
 
-    auto is_single_rooted = [&](const std::string &m) { return std::find(SINGLE_ROOTED_METHODS.begin(), SINGLE_ROOTED_METHODS.end(), m) == SINGLE_ROOTED_METHODS.end(); };
-    auto is_all_collective = [&](const std::string &m) { return std::find(ALL_COLLECTIVE_METHODS.begin(), ALL_COLLECTIVE_METHODS.end(), m) == ALL_COLLECTIVE_METHODS.end(); };
+    auto is_single_rooted = [&](const std::string &m) { return std::find(SINGLE_ROOTED_METHODS.begin(), SINGLE_ROOTED_METHODS.end(), m) != SINGLE_ROOTED_METHODS.end(); };
+    auto is_all_collective = [&](const std::string &m) { return std::find(ALL_COLLECTIVE_METHODS.begin(), ALL_COLLECTIVE_METHODS.end(), m) != ALL_COLLECTIVE_METHODS.end(); };
 
     for (const auto &m : methods) {
         if (!is_single_rooted(m) && !is_all_collective(m)) {
@@ -121,7 +130,7 @@ int main(int argc, char *argv[]) {
     size_t max_size = test_sizes[test_sizes.size() - 1];
     auto test_latency = new double[test_sizes.size()](), test_throughput = new double[test_sizes.size()]();
     MPI_Request *requests = new MPI_Request[batch];
-    auto buf = new uint8_t[max_size * batch], alt_buf = new uint8_t[max_size * batch * mpi_size];
+    auto buf = new uint8_t[max_size * batch * mpi_size], alt_buf = new uint8_t[max_size * batch * mpi_size];
 
     // test functions
     const auto do_bcast = [&](int count, int root) {
@@ -133,7 +142,7 @@ int main(int argc, char *argv[]) {
 
     const auto do_reduce = [&](int count, int root) {
         for (int j = 0; j < batch; ++j) {
-            MPI_Ireduce(buf + j * max_size, alt_buf + j * max_size * mpi_size, count, MPI_INT32_T, MPI_SUM, root, MPI_COMM_WORLD, &requests[j]);
+            MPI_Ireduce(buf + j * max_size, alt_buf + j * max_size, count, MPI_INT32_T, MPI_SUM, root, MPI_COMM_WORLD, &requests[j]);
         }
         MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
     };
@@ -145,9 +154,23 @@ int main(int argc, char *argv[]) {
         MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
     };
 
+    const auto do_scatter = [&](int count, int root) {
+        for (int j = 0; j < batch; ++j) {
+            MPI_Iscatter(alt_buf + j * max_size * mpi_size, count, MPI_INT32_T, buf + j * max_size, count, MPI_INT32_T, root, MPI_COMM_WORLD, &requests[j]);
+        }
+        MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
+    };
+
     const auto do_scan = [&](int count, [[maybe_unused]] int root) {
         for (int j = 0; j < batch; ++j) {
             MPI_Iscan(buf + j * max_size, alt_buf + j * max_size, count, MPI_INT32_T, MPI_SUM, MPI_COMM_WORLD, &requests[j]);
+        }
+        MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
+    };
+
+    const auto do_reduce_scatter = [&](int count, [[maybe_unused]] int root) {
+        for (int j = 0; j < batch; ++j) {
+            MPI_Ireduce_scatter(alt_buf + j * max_size * mpi_size, buf + j * max_size, &count, MPI_INT32_T, MPI_SUM, MPI_COMM_WORLD, &requests[j]);
         }
         MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
     };
@@ -168,7 +191,7 @@ int main(int argc, char *argv[]) {
 
     const auto do_alltoall = [&](int count, [[maybe_unused]] int root) {
         for (int j = 0; j < batch; ++j) {
-            MPI_Ialltoall(buf + j * max_size, count, MPI_INT32_T, alt_buf + j * max_size * mpi_size, count, MPI_INT32_T, MPI_COMM_WORLD, &requests[j]);
+            MPI_Ialltoall(buf + j * max_size * mpi_size, count, MPI_INT32_T, alt_buf + j * max_size * mpi_size, count, MPI_INT32_T, MPI_COMM_WORLD, &requests[j]);
         }
         MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
     };
@@ -177,7 +200,9 @@ int main(int argc, char *argv[]) {
         {"bcast", do_bcast},
         {"reduce", do_reduce},
         {"gather", do_gather},
+        {"scatter", do_scatter},
         {"scan", do_scan},
+        {"reduce_scatter", do_reduce_scatter},
         {"allreduce", do_allreduce},
         {"allgather", do_allgather},
         {"alltoall", do_alltoall},
@@ -198,9 +223,9 @@ int main(int argc, char *argv[]) {
             current_roots = roots;
         }
         // iterate over all roots
-        for (auto r : roots) {
-            DO_RANK_ZERO(printf("Root: %d\n", r));
-            DO_RANK_ZERO(puts("   Size   Latency (us) Bandwidth (Mbps)"));
+        for (auto r : current_roots) {
+            DO_RANK_ZERO(printf("Root: %d%s\n", r, single_rooted ? "" : " (not used)"));
+            DO_RANK_ZERO(puts("   Size    Latency(us) Bandwidth(Mbps)"));
             // fill with invalid values
             std::fill(test_latency, test_latency + test_sizes.size(), std::numeric_limits<double>::max());
             std::fill(test_throughput, test_throughput + test_sizes.size(), 0.);
@@ -222,7 +247,7 @@ int main(int argc, char *argv[]) {
                 }
                 // print results
                 if (mpi_rank == 0) {
-                    printf("%7d %12.5f %12.5f\n", test_sizes[s], test_latency[s], test_throughput[s]);
+                    printf("%7d %11.3f %12.5f\n", test_sizes[s], test_latency[s], test_throughput[s]);
                 }
             }
         }

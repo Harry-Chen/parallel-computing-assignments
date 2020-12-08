@@ -24,10 +24,13 @@ int main(int argc, char *argv[]) {
     // fetch options
     auto result = options.parse(argc, argv);
     auto repeat = result["r"].as<int>();
+    // test sizes (sort + uniquefy)
     auto test_sizes = result["s"].as<std::vector<int>>();
+    std::sort(test_sizes.begin(), test_sizes.end());
+    test_sizes.erase(std::unique(test_sizes.begin(), test_sizes.end()), test_sizes.end());
+    // other options
     auto warmup = result["w"].as<int>();
     auto batch = result["b"].as<int>();
-    std::sort(test_sizes.begin(), test_sizes.end());
     auto output = result["o"].as<std::string>();
 
     // print help
