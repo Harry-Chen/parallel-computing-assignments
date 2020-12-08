@@ -131,6 +131,7 @@ int main(int argc, char *argv[]) {
     auto test_latency = new double[test_sizes.size()](), test_throughput = new double[test_sizes.size()]();
     MPI_Request *requests = new MPI_Request[batch];
     auto buf = new uint8_t[max_size * batch * mpi_size], alt_buf = new uint8_t[max_size * batch * mpi_size];
+    auto counts = new int[mpi_size];
 
     // test functions
     const auto do_bcast = [&](int count, int root) {
@@ -169,8 +170,12 @@ int main(int argc, char *argv[]) {
     };
 
     const auto do_reduce_scatter = [&](int count, [[maybe_unused]] int root) {
+        // fill counts array
+        if (counts[0] != count / mpi_size) {
+            std::fill(counts, counts + mpi_size, count / mpi_size);
+        }
         for (int j = 0; j < batch; ++j) {
-            MPI_Ireduce_scatter(alt_buf + j * max_size * mpi_size, buf + j * max_size, &count, MPI_INT32_T, MPI_SUM, MPI_COMM_WORLD, &requests[j]);
+            MPI_Ireduce_scatter(alt_buf + j * max_size * mpi_size, buf + j * max_size, counts, MPI_INT32_T, MPI_SUM, MPI_COMM_WORLD, &requests[j]);
         }
         MPI_Waitall(batch, requests, MPI_STATUSES_IGNORE);
     };
