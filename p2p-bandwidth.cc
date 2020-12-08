@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
                 }
             };
 
+            MPI_Barrier(MPI_COMM_WORLD);
             // smaller rank -> larger rank (receive bandwidth of larger rank)
             // transfer_data(2, false); // warm up
             auto duration_1 = timer(transfer_data, repeat, false);
@@ -152,9 +153,9 @@ int main(int argc, char *argv[]) {
             MPI_Barrier(MPI_COMM_WORLD);
 
             if (mpi_rank < opposite_rank) {
-                test_result[opposite_rank] = (double) size * repeat * MPI_TEST_BATCH_SIZE / 1000000 / duration_2;
+                test_result[opposite_rank] = (double) size * repeat * batch / 1000000 / duration_2;
             } else if (mpi_rank > opposite_rank) {
-                test_result[opposite_rank] = (double) size * repeat * MPI_TEST_BATCH_SIZE / 1000000 / duration_1;
+                test_result[opposite_rank] = (double) size * repeat * batch / 1000000 / duration_1;
             }
         }
 
