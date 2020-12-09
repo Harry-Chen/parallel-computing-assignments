@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
     auto max_size_per_thread = 16 * 1048576UL; // 16 MB
     auto buf = new uint8_t[max_size_per_thread * threads]; // write / read buffer
     auto result_buffer = new double[mpi_size];
-    // auto requests = new MPI_Request[threads * 256];
+    auto requests = new MPI_Request[threads * 256];
 
     // iterate over ratios
     for (auto r : ratios) {
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
             auto size = test_sizes[s];
 
             size_t size_per_thread = std::min(size * 256, max_size_per_thread); // each thread does 256 rounds of IO at maximum
-            size_t iter_per_thread = size_per_thread / size; // IO operations performed by each thread
+            size_t iter_per_thread = size_per_thread / size; // number of IO operations performed by each thread
             size_t size_per_rank = threads * size_per_thread;
             size_t round_size = size_per_rank * mpi_size;
             size_t total_file_size = round_size * 2; // non-collective / collective
@@ -181,12 +181,14 @@ int main(int argc, char *argv[]) {
                     // spawn test threads
                     auto start = std::chrono::high_resolution_clock::now();
                     for (int i = 0; i < threads; ++i) {
-                        test_threads[i] = std::thread([=](){
+                        test_threads[i] = std::thread([=, &requests](){
                             for (size_t j = 0; j < iter_per_thread; ++j) {
                                 if (configs[i].read) {
                                     MPI_File_read_at(file, configs[i].offset + j * size, buf + i * max_size_per_thread + j * size, size, MPI_CHAR, MPI_STATUS_IGNORE);
+                                    // MPI_File_iread_at(file, configs[i].offset + j * size, buf + i * max_size_per_thread + j * size, size, MPI_CHAR, &requests[256 * i + j]);
                                 } else {
                                     MPI_File_write_at(file, configs[i].offset + j * size, buf + i * max_size_per_thread + j * size, size, MPI_CHAR, MPI_STATUS_IGNORE);
+                                    // MPI_File_iwrite_at(file, configs[i].offset + j * size, buf + i * max_size_per_thread + j * size, size, MPI_CHAR, &requests[256 * i + j]);
                                 }
                             }
                             // MPI_Waitall(iter_per_thread, &requests[256 * i], MPI_STATUSES_IGNORE);
@@ -196,7 +198,7 @@ int main(int argc, char *argv[]) {
                     for (int i = 0; i < threads; ++i) {
                         test_threads[i].join();
                     }
-                    // in the final round, join all ranks
+                    // in the final round, wait for all ranks to finish
                     if (r == mpi_size) {
                         MPI_Barrier(MPI_COMM_WORLD);
                     }
