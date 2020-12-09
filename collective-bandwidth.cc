@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 
     // print test parameters
     if (mpi_rank == 0) {
-        puts("MPI P2P collective tester");
+        puts("MPI collective bandwidth tester");
         printf("Nodes: ");
         for (int i = 0; i < mpi_size; ++i) {
             printf("%s%s", &mpi_rank_names[i * MPI_MAX_PROCESSOR_NAME], ((i == mpi_size - 1) ? "\n" : ", "));

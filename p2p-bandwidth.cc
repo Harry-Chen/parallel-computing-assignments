@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     MPI_File output_file = MPI_FILE_NULL;
     if (output != "") {
         if (MPI_File_open(MPI_COMM_WORLD, output.c_str(), MPI_MODE_CREATE | MPI_MODE_RDWR, MPI_INFO_NULL, &output_file) != MPI_SUCCESS) {
-            DO_RANK_ZERO(fprintf(stderr, "ERROR: cannot open output file %s\n", output.c_str()));
+            fprintf(stderr, "ERROR: cannot open output file %s on rank %d\n", output.c_str(), mpi_rank);
             EARLY_EXIT(2);
         };
     }

@@ -9,3 +9,4 @@ validation*
 !*.hh
 matrix
 *.mat
+io_test*
